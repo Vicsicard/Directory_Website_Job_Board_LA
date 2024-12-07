@@ -24,10 +24,18 @@ export type Location = z.infer<typeof locationSchema>;
 
 // Helper function to resolve paths relative to project root
 function resolveDataPath(fileName: string): string {
-  return path.join(process.cwd(), 'src', 'data', fileName);
+  const dataPath = path.join(process.cwd(), 'data', fileName);
+  if (!dataPath) {
+    throw new Error(`Invalid data path for file: ${fileName}`);
+  }
+  return dataPath;
 }
 
 async function parseCSV<T>(filePath: string, schema: z.Schema<T>): Promise<T[]> {
+  if (!filePath) {
+    throw new Error('File path is required for CSV parsing');
+  }
+
   return withErrorHandling(async () => {
     const fileContent = await fs.readFile(filePath, 'utf-8');
     
@@ -36,32 +44,21 @@ async function parseCSV<T>(filePath: string, schema: z.Schema<T>): Promise<T[]> 
         columns: true,
         skip_empty_lines: true,
         cast: true,
-        cast_date: true,
-        trim: true,
-      }, async (error, records) => {
+      }, (error, records) => {
         if (error) {
           reject(new CSVError(`Failed to parse CSV file: ${error.message}`));
           return;
         }
 
         try {
-          // Parse and validate each record
-          const validatedRecords = await Promise.all(
-            records.map(async (record) => {
-              try {
-                return schema.parse(record);
-              } catch (err) {
-                throw new CSVError(`Invalid record in CSV: ${err.message}`);
-              }
-            })
-          );
+          const validatedRecords = records.map(record => schema.parse(record));
           resolve(validatedRecords);
-        } catch (err) {
-          reject(err);
+        } catch (validationError) {
+          reject(new CSVError(`CSV validation failed: ${validationError.message}`));
         }
       });
     });
-  }, `Failed to parse CSV file at ${filePath}`);
+  });
 }
 
 const csvCache = new Map<string, { data: any[]; timestamp: number }>();
@@ -72,28 +69,24 @@ async function getCachedCSVData<T>(
   schema: z.Schema<T>,
   forceRefresh = false
 ): Promise<T[]> {
-  const filePath = resolveDataPath(fileName);
-  const cacheKey = filePath;
+  const cacheKey = fileName;
   const now = Date.now();
   const cached = csvCache.get(cacheKey);
 
-  if (
-    !forceRefresh &&
-    cached &&
-    now - cached.timestamp < CSV_CACHE_TTL
-  ) {
-    return cached.data;
+  if (!forceRefresh && cached && now - cached.timestamp < CSV_CACHE_TTL) {
+    return cached.data as T[];
   }
 
   try {
+    const filePath = resolveDataPath(fileName);
     const data = await parseCSV(filePath, schema);
     csvCache.set(cacheKey, { data, timestamp: now });
     return data;
   } catch (error) {
-    // If there's an error and we have cached data, return it as fallback
+    console.error(`Error loading CSV data from ${fileName}:`, error);
     if (cached) {
-      console.warn(`Failed to refresh CSV data, using cached data: ${error.message}`);
-      return cached.data;
+      console.log('Using cached data as fallback');
+      return cached.data as T[];
     }
     throw error;
   }
@@ -108,6 +101,7 @@ export async function getLocations(forceRefresh = false): Promise<Location[]> {
 }
 
 export function generateSlug(text: string): string {
+  if (!text) return '';
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -125,23 +119,24 @@ export async function validateLocationExists(location: string): Promise<boolean>
 }
 
 export async function generateStaticPaths() {
-  const keywords = await getKeywords();
-  const locations = await getLocations();
-  
-  const paths = [];
-  
-  for (const keyword of keywords) {
-    for (const location of locations) {
-      paths.push({
+  try {
+    const [keywords, locations] = await Promise.all([
+      getKeywords(),
+      getLocations()
+    ]);
+
+    return keywords.flatMap(keyword => 
+      locations.map(location => ({
         params: {
           keyword: generateSlug(keyword.keyword),
           location: generateSlug(`${location.city}-${location.state}`)
         }
-      });
-    }
+      }))
+    );
+  } catch (error) {
+    console.error('Error generating static paths:', error);
+    return [];
   }
-  
-  return paths;
 }
 
 export function formatLocationDisplay(city: string, state: string): string {
@@ -149,9 +144,9 @@ export function formatLocationDisplay(city: string, state: string): string {
 }
 
 export function generatePageTitle(keyword: string, city: string, state: string): string {
-  return `The 10 Best ${keyword} in ${city}, ${state}`;
+  return `${keyword} in ${city}, ${state} | Local Services Directory`;
 }
 
 export function generateMetaDescription(keyword: string, city: string, state: string): string {
-  return `Find and compare the best ${keyword} in ${city}, ${state}. Read reviews, check ratings, and contact local service providers.`;
+  return `Find and compare the best ${keyword} services in ${city}, ${state}. Read reviews, check ratings, and contact local providers.`;
 }
