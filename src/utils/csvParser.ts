@@ -22,6 +22,11 @@ const locationSchema = z.object({
 export type Keyword = z.infer<typeof keywordSchema>;
 export type Location = z.infer<typeof locationSchema>;
 
+// Helper function to resolve paths relative to project root
+function resolveDataPath(fileName: string): string {
+  return path.join(process.cwd(), 'src', 'data', fileName);
+}
+
 async function parseCSV<T>(filePath: string, schema: z.Schema<T>): Promise<T[]> {
   return withErrorHandling(async () => {
     const fileContent = await fs.readFile(filePath, 'utf-8');
@@ -40,75 +45,73 @@ async function parseCSV<T>(filePath: string, schema: z.Schema<T>): Promise<T[]> 
         }
 
         try {
-          // Validate each record
+          // Parse and validate each record
           const validatedRecords = await Promise.all(
-            records.map(async (record: any, index: number) => {
+            records.map(async (record) => {
               try {
-                return await schema.parseAsync(record);
-              } catch (validationError) {
-                throw new CSVError(
-                  `Invalid record at line ${index + 2}: ${(validationError as Error).message}`
-                );
+                return schema.parse(record);
+              } catch (err) {
+                throw new CSVError(`Invalid record in CSV: ${err.message}`);
               }
             })
           );
-
           resolve(validatedRecords);
-        } catch (validationError) {
-          reject(validationError);
+        } catch (err) {
+          reject(err);
         }
       });
     });
-  }, 'Error parsing CSV file');
+  }, `Failed to parse CSV file at ${filePath}`);
 }
 
-const csvCache = new Map<string, any[]>();
+const csvCache = new Map<string, { data: any[]; timestamp: number }>();
 const CSV_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 async function getCachedCSVData<T>(
-  filePath: string,
+  fileName: string,
   schema: z.Schema<T>,
   forceRefresh = false
 ): Promise<T[]> {
-  const absolutePath = path.resolve(process.cwd(), filePath);
-  const cacheKey = `${absolutePath}`;
+  const filePath = resolveDataPath(fileName);
+  const cacheKey = filePath;
+  const now = Date.now();
+  const cached = csvCache.get(cacheKey);
 
-  if (!forceRefresh && csvCache.has(cacheKey)) {
-    return csvCache.get(cacheKey) as T[];
+  if (
+    !forceRefresh &&
+    cached &&
+    now - cached.timestamp < CSV_CACHE_TTL
+  ) {
+    return cached.data;
   }
 
   try {
-    const data = await parseCSV(absolutePath, schema);
-    csvCache.set(cacheKey, data);
-    
-    // Set cache expiration
-    setTimeout(() => {
-      csvCache.delete(cacheKey);
-    }, CSV_CACHE_TTL);
-
+    const data = await parseCSV(filePath, schema);
+    csvCache.set(cacheKey, { data, timestamp: now });
     return data;
   } catch (error) {
-    if (csvCache.has(cacheKey)) {
-      console.warn('Error refreshing CSV data, using cached data:', error);
-      return csvCache.get(cacheKey) as T[];
+    // If there's an error and we have cached data, return it as fallback
+    if (cached) {
+      console.warn(`Failed to refresh CSV data, using cached data: ${error.message}`);
+      return cached.data;
     }
     throw error;
   }
 }
 
 export async function getKeywords(forceRefresh = false): Promise<Keyword[]> {
-  return getCachedCSVData('src/data/keywords.csv', keywordSchema, forceRefresh);
+  return getCachedCSVData('keywords.csv', keywordSchema, forceRefresh);
 }
 
 export async function getLocations(forceRefresh = false): Promise<Location[]> {
-  return getCachedCSVData('src/data/locations.csv', locationSchema, forceRefresh);
+  return getCachedCSVData('locations.csv', locationSchema, forceRefresh);
 }
 
 export function generateSlug(text: string): string {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
+    .replace(/^-|-$/g, '');
 }
 
 export async function validateKeywordExists(keyword: string): Promise<boolean> {
@@ -150,5 +153,5 @@ export function generatePageTitle(keyword: string, city: string, state: string):
 }
 
 export function generateMetaDescription(keyword: string, city: string, state: string): string {
-  return `Discover the top-rated ${keyword} in ${city}, ${state}, including contact details and reviews. Find the best local services near you.`;
+  return `Find and compare the best ${keyword} in ${city}, ${state}. Read reviews, check ratings, and contact local service providers.`;
 }
