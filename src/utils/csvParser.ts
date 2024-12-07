@@ -1,125 +1,106 @@
-import { promises as fs } from 'fs';
-import path from 'path';
-import { parse } from 'csv-parse';
 import { CSVError, withErrorHandling } from './errorHandling';
 import { z } from 'zod';
+
+// Mark this module as server-side only
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 // Validation schemas
 const keywordSchema = z.object({
   keyword: z.string().min(1, 'Keyword cannot be empty'),
-  category: z.string().min(1, 'Category cannot be empty'),
-  priority: z.number().int().min(0),
+  category: z.string().optional(),
 });
 
 const locationSchema = z.object({
-  city: z.string().min(1, 'City cannot be empty'),
-  state: z.string().length(2, 'State must be a 2-letter code'),
-  latitude: z.number(),
-  longitude: z.number(),
-  population: z.number().int().min(0),
+  location: z.string().min(1, 'Location cannot be empty'),
+  state: z.string().min(2, 'State must be at least 2 characters'),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  population: z.number().optional(),
 });
 
-export type Keyword = z.infer<typeof keywordSchema>;
-export type Location = z.infer<typeof locationSchema>;
-
-// Helper function to resolve paths relative to project root
-function resolveDataPath(fileName: string): string {
-  if (!fileName) throw new Error('Filename is required');
-  const dataPath = path.join(process.cwd(), 'src', 'data', fileName);
-  return dataPath;
+export interface Keyword {
+  keyword: string;
+  category: string;
+  description?: string;
 }
 
-// Parse CSV with better error handling
-async function parseCSV<T>(filePath: string, schema: z.Schema<T>): Promise<T[]> {
-  try {
-    const fileContent = await fs.readFile(filePath, 'utf-8');
-    if (!fileContent.trim()) {
-      console.warn(`Empty file: ${filePath}`);
-      return [];
-    }
-
-    return new Promise((resolve, reject) => {
-      parse(fileContent, {
-        columns: true,
-        skip_empty_lines: true,
-        trim: true,
-      }, (err, output) => {
-        if (err) {
-          console.error(`Error parsing CSV: ${filePath}`, err);
-          reject(err);
-          return;
-        }
-        
-        try {
-          const validatedData = output.map(row => schema.parse(row));
-          resolve(validatedData);
-        } catch (validationError) {
-          console.error(`Validation error in CSV: ${filePath}`, validationError);
-          reject(validationError);
-        }
-      });
-    });
-  } catch (error) {
-    console.error(`Error reading/parsing CSV: ${filePath}`, error);
-    return [];
-  }
+export interface Location {
+  location: string;
+  state: string;
+  latitude?: number;
+  longitude?: number;
+  population?: number;
 }
 
-const csvCache = new Map<string, { data: any[]; timestamp: number }>();
-const CSV_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-async function getCachedCSVData<T>(
-  fileName: string,
-  schema: z.Schema<T>,
-  forceRefresh = false
-): Promise<T[]> {
-  const cacheKey = fileName;
-  const now = Date.now();
-  const cached = csvCache.get(cacheKey);
-
-  if (!forceRefresh && cached && now - cached.timestamp < CSV_CACHE_TTL) {
-    return cached.data as T[];
+// Mock data for development
+const mockKeywords: Keyword[] = [
+  {
+    keyword: "Plumber",
+    category: "Home Services",
+    description: "Professional plumbing services"
+  },
+  {
+    keyword: "Electrician",
+    category: "Home Services",
+    description: "Licensed electrical contractors"
+  },
+  {
+    keyword: "Restaurant",
+    category: "Food & Dining",
+    description: "Local dining establishments"
   }
+];
 
-  try {
-    const filePath = resolveDataPath(fileName);
-    const data = await parseCSV(filePath, schema);
-    csvCache.set(cacheKey, { data, timestamp: now });
-    return data;
-  } catch (error) {
-    console.error(`Error loading CSV data from ${fileName}:`, error);
-    if (cached) {
-      console.log('Using cached data as fallback');
-      return cached.data as T[];
-    }
-    throw error;
+const mockLocations: Location[] = [
+  {
+    location: "New York",
+    state: "NY",
+    latitude: 40.7128,
+    longitude: -74.0060,
+    population: 8419000
+  },
+  {
+    location: "Los Angeles",
+    state: "CA",
+    latitude: 34.0522,
+    longitude: -118.2437,
+    population: 3980000
+  },
+  {
+    location: "Chicago",
+    state: "IL",
+    latitude: 41.8781,
+    longitude: -87.6298,
+    population: 2716000
   }
-}
-
-export async function getKeywords(forceRefresh = false): Promise<Keyword[]> {
-  try {
-    return await getCachedCSVData('keywords.csv', keywordSchema, forceRefresh);
-  } catch (error) {
-    console.error('Error getting keywords:', error);
-    return [];
-  }
-}
-
-export async function getLocations(forceRefresh = false): Promise<Location[]> {
-  try {
-    return await getCachedCSVData('locations.csv', locationSchema, forceRefresh);
-  } catch (error) {
-    console.error('Error getting locations:', error);
-    return [];
-  }
-}
+];
 
 export function generateSlug(text: string): string {
-  if (!text) return '';
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
+}
+
+export async function getKeywords(): Promise<Keyword[]> {
+  // In development, return mock data
+  if (process.env.NODE_ENV === 'development') {
+    return mockKeywords;
+  }
+
+  // In production, you would fetch this from an API or database
+  return mockKeywords; // For now, return mock data in all environments
+}
+
+export async function getLocations(): Promise<Location[]> {
+  // In development, return mock data
+  if (process.env.NODE_ENV === 'development') {
+    return mockLocations;
+  }
+
+  // In production, you would fetch this from an API or database
+  return mockLocations; // For now, return mock data in all environments
 }
 
 export async function validateKeywordExists(keyword: string): Promise<boolean> {
@@ -129,7 +110,7 @@ export async function validateKeywordExists(keyword: string): Promise<boolean> {
 
 export async function validateLocationExists(location: string): Promise<boolean> {
   const locations = await getLocations();
-  return locations.some(l => generateSlug(`${l.city}-${l.state}`) === location);
+  return locations.some(l => generateSlug(`${l.location}-${l.state}`) === location);
 }
 
 export async function generateStaticPaths() {
@@ -143,7 +124,7 @@ export async function generateStaticPaths() {
       locations.map(location => ({
         params: {
           keyword: generateSlug(keyword.keyword),
-          location: generateSlug(`${location.city}-${location.state}`)
+          location: generateSlug(`${location.location}-${location.state}`)
         }
       }))
     );

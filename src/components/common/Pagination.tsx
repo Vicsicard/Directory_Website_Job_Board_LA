@@ -1,106 +1,77 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useMemo } from 'react';
+import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
 
-interface PaginationProps {
+export interface PaginationProps {
   currentPage: number;
-  totalPages: number;
-  baseUrl: string;
+  totalItems: number;
+  itemsPerPage: number;
 }
 
-export default function Pagination({ currentPage, totalPages, baseUrl }: PaginationProps) {
-  const router = useRouter();
+export default function Pagination({ currentPage, totalItems, itemsPerPage }: PaginationProps) {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
 
-  // Generate page numbers to display
-  const pageNumbers = useMemo(() => {
-    const delta = 2; // Number of pages to show before and after current page
-    const range = [];
-    const rangeWithDots = [];
-    let l;
+  if (totalPages <= 1) {
+    return null;
+  }
 
-    for (let i = 1; i <= totalPages; i++) {
-      if (
-        i === 1 ||
-        i === totalPages ||
-        (i >= currentPage - delta && i <= currentPage + delta)
-      ) {
-        range.push(i);
-      }
-    }
-
-    for (let i of range) {
-      if (l) {
-        if (i - l === 2) {
-          rangeWithDots.push(l + 1);
-        } else if (i - l !== 1) {
-          rangeWithDots.push('...');
-        }
-      }
-      rangeWithDots.push(i);
-      l = i;
-    }
-
-    return rangeWithDots;
-  }, [currentPage, totalPages]);
-
-  // Handle page change
-  const handlePageChange = (page: number) => {
+  const createPageUrl = (page: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('page', page.toString());
-    router.push(`${baseUrl}?${params.toString()}`);
+    return `${pathname}?${params.toString()}`;
   };
 
-  if (totalPages <= 1) return null;
-
   return (
-    <nav className="flex justify-center items-center space-x-2 my-8" aria-label="Pagination">
-      <button
-        onClick={() => handlePageChange(currentPage - 1)}
-        disabled={currentPage === 1}
-        className={`px-3 py-1 rounded-md ${
-          currentPage === 1
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : 'bg-white text-gray-700 hover:bg-gray-50'
-        } border border-gray-300`}
-        aria-label="Previous page"
-      >
-        Previous
-      </button>
+    <nav className="flex justify-center mt-8" aria-label="Pagination">
+      <ul className="flex items-center -space-x-px">
+        {/* Previous Page */}
+        {currentPage > 1 && (
+          <li>
+            <Link
+              href={createPageUrl(currentPage - 1)}
+              className="px-3 py-2 ml-0 leading-tight text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-100 hover:text-gray-700"
+            >
+              Previous
+            </Link>
+          </li>
+        )}
 
-      <div className="flex items-center space-x-1">
-        {pageNumbers.map((pageNumber, index) => (
-          <button
-            key={index}
-            onClick={() => typeof pageNumber === 'number' && handlePageChange(pageNumber)}
-            disabled={pageNumber === '...'}
-            className={`px-3 py-1 rounded-md ${
-              pageNumber === currentPage
-                ? 'bg-blue-600 text-white'
-                : pageNumber === '...'
-                ? 'cursor-default'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            } border border-gray-300`}
-            aria-current={pageNumber === currentPage ? 'page' : undefined}
-          >
-            {pageNumber}
-          </button>
-        ))}
-      </div>
+        {/* Page Numbers */}
+        {[...Array(totalPages)].map((_, index) => {
+          const pageNumber = index + 1;
+          const isCurrentPage = pageNumber === currentPage;
 
-      <button
-        onClick={() => handlePageChange(currentPage + 1)}
-        disabled={currentPage === totalPages}
-        className={`px-3 py-1 rounded-md ${
-          currentPage === totalPages
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : 'bg-white text-gray-700 hover:bg-gray-50'
-        } border border-gray-300`}
-        aria-label="Next page"
-      >
-        Next
-      </button>
+          return (
+            <li key={pageNumber}>
+              <Link
+                href={createPageUrl(pageNumber)}
+                className={`px-3 py-2 leading-tight border ${
+                  isCurrentPage
+                    ? 'text-blue-600 bg-blue-50 border-blue-300 hover:bg-blue-100 hover:text-blue-700'
+                    : 'text-gray-500 bg-white border-gray-300 hover:bg-gray-100 hover:text-gray-700'
+                }`}
+              >
+                {pageNumber}
+              </Link>
+            </li>
+          );
+        })}
+
+        {/* Next Page */}
+        {currentPage < totalPages && (
+          <li>
+            <Link
+              href={createPageUrl(currentPage + 1)}
+              className="px-3 py-2 leading-tight text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-100 hover:text-gray-700"
+            >
+              Next
+            </Link>
+          </li>
+        )}
+      </ul>
     </nav>
   );
 }

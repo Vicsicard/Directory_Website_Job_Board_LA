@@ -247,5 +247,10 @@ export async function initializeDatabase(): Promise<void> {
   }
 }
 
+export async function getCacheCollection() {
+  const { db } = await getMongoConnection();
+  return db.collection(CACHE_COLLECTION);
+}
+
 // Initialize database when the module is imported
 initializeDatabase().catch(console.error);

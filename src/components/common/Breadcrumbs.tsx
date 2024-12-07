@@ -1,48 +1,49 @@
+'use client';
+
 import Link from 'next/link';
-import { ChevronRightIcon, HomeIcon } from '@heroicons/react/24/solid';
+import { generateSlug } from '@/utils/csvParser';
+import { Location } from '@/utils/csvParser';
+import ChevronRightIcon from './ChevronRightIcon'; // Assuming the icon is in the same directory
 
-interface Crumb {
-  name: string;
-  url: string;
+export interface BreadcrumbsProps {
+  keyword: string;
+  location: Location;
 }
 
-interface BreadcrumbsProps {
-  items: Crumb[];
-}
+export default function Breadcrumbs({ keyword, location }: BreadcrumbsProps) {
+  const keywordSlug = generateSlug(keyword);
+  const locationSlug = generateSlug(`${location.location}-${location.state}`);
 
-export default function Breadcrumbs({ items }: BreadcrumbsProps) {
   return (
-    <nav className="flex" aria-label="Breadcrumb">
+    <nav className="text-sm font-medium" aria-label="Breadcrumb">
       <ol className="flex items-center space-x-4">
-        {items.map((item, index) => (
-          <li key={item.url} className="flex items-center">
-            {index > 0 && (
-              <ChevronRightIcon
-                className="flex-shrink-0 h-5 w-5 text-gray-400"
-                aria-hidden="true"
-              />
-            )}
-            
+        <li>
+          <Link href="/" className="text-gray-500 hover:text-gray-700">
+            Home
+          </Link>
+        </li>
+        <li>
+          <div className="flex items-center">
+            <ChevronRightIcon className="h-5 w-5 text-gray-400" aria-hidden={true} />
             <Link
-              href={item.url}
-              className={`ml-4 text-sm font-medium ${
-                index === items.length - 1
-                  ? 'text-gray-700 hover:text-gray-900'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-              aria-current={index === items.length - 1 ? 'page' : undefined}
+              href={`/${keywordSlug}`}
+              className="ml-4 text-gray-500 hover:text-gray-700"
             >
-              {index === 0 ? (
-                <span className="flex items-center">
-                  <HomeIcon className="flex-shrink-0 h-5 w-5" />
-                  <span className="sr-only">{item.name}</span>
-                </span>
-              ) : (
-                item.name
-              )}
+              {keyword}
             </Link>
-          </li>
-        ))}
+          </div>
+        </li>
+        <li>
+          <div className="flex items-center">
+            <ChevronRightIcon className="h-5 w-5 text-gray-400" aria-hidden={true} />
+            <Link
+              href={`/${keywordSlug}/${locationSlug}`}
+              className="ml-4 text-gray-500 hover:text-gray-700"
+            >
+              {location.location}, {location.state}
+            </Link>
+          </div>
+        </li>
       </ol>
     </nav>
   );

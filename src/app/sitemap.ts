@@ -1,33 +1,44 @@
 import { MetadataRoute } from 'next';
-import { getAllKeywords } from '@/utils/csvParser';
+import { getKeywords, getLocations, generateSlug } from '@/utils/csvParser';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://local-services-directory.vercel.app';
-  const keywords = await getAllKeywords();
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  
+  // Get all keywords and locations
+  const keywords = await getKeywords();
+  const locations = await getLocations();
 
-  // Base routes
-  const routes = [
+  // Generate sitemap entries
+  const entries: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 1,
     },
-    {
-      url: `${baseUrl}/contact`,
+  ];
+
+  // Add keyword pages
+  for (const keyword of keywords) {
+    const slug = generateSlug(keyword.keyword);
+    entries.push({
+      url: `${baseUrl}/${slug}`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.8,
-    },
-  ];
+    });
 
-  // Add dynamic routes for each keyword
-  const keywordRoutes = keywords.map((keyword) => ({
-    url: `${baseUrl}/${encodeURIComponent(keyword)}`,
-    lastModified: new Date(),
-    changeFrequency: 'daily',
-    priority: 0.9,
-  }));
+    // Add location pages for each keyword
+    for (const location of locations) {
+      const locationSlug = generateSlug(`${location.location}-${location.state}`);
+      entries.push({
+        url: `${baseUrl}/${slug}/${locationSlug}`,
+        lastModified: new Date(),
+        changeFrequency: 'weekly',
+        priority: 0.7,
+      });
+    }
+  }
 
-  return [...routes, ...keywordRoutes];
+  return entries;
 }

@@ -1,3 +1,6 @@
+import { Metadata } from 'next';
+import { Location } from './csvParser';
+
 export interface SeoMetadata {
   title: string;
   description: string;
@@ -14,65 +17,51 @@ export interface SeoMetadata {
 
 export function generateSeoMetadata(
   keyword: string,
-  city: string,
-  state: string,
-  baseUrl: string = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-): SeoMetadata {
-  const location = state ? `${city}, ${state}` : city;
-  const title = `The 10 Best ${keyword} in ${location} (Updated ${new Date().getFullYear()})`;
-  const description = `Find the top-rated ${keyword} in ${location}. Compare customer reviews, services offered, and contact information. Updated list of the best local ${keyword.toLowerCase()} providers.`;
-  const path = `/${encodeURIComponent(keyword.toLowerCase())}/${encodeURIComponent(location.toLowerCase())}`;
-  const url = `${baseUrl}${path}`;
+  location: Location,
+  places: any[] = []
+): Metadata {
+  const title = `${keyword} in ${location.city}, ${location.state} | Local Services Directory`;
+  const description = `Find the best ${keyword} services in ${location.city}, ${location.state}. Browse reviews, ratings, and contact information for local ${keyword} providers.`;
 
   return {
     title,
     description,
-    canonical: url,
     openGraph: {
       title,
       description,
-      url,
-      siteName: 'Local Service Directory',
-      locale: 'en_US',
       type: 'website',
+      locale: 'en_US',
+    },
+    twitter: {
+      card: 'summary',
+      title,
+      description,
     },
   };
 }
 
-export function generateStructuredData(
-  keyword: string,
-  city: string,
-  state: string,
-  businesses: Array<{
-    name: string;
-    rating?: number;
-    reviewCount?: number;
-    address?: string;
-    phone?: string;
-  }>
-) {
-  const location = state ? `${city}, ${state}` : city;
-  
+export function generateStructuredData(keyword: string, location: Location, places: any[] = []) {
   return {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
-    'itemListElement': businesses.map((business, index) => ({
-      '@type': 'ListItem',
-      'position': index + 1,
-      'item': {
-        '@type': 'LocalBusiness',
-        'name': business.name,
-        'address': business.address,
-        'telephone': business.phone,
-        ...(business.rating && {
-          'aggregateRating': {
-            '@type': 'AggregateRating',
-            'ratingValue': business.rating,
-            'reviewCount': business.reviewCount || 0
-          }
-        })
+    name: `${keyword} in ${location.city}, ${location.state}`,
+    description: `List of ${keyword} services in ${location.city}, ${location.state}`,
+    numberOfItems: places.length,
+    itemListElement: places.map((place, index) => ({
+      '@type': 'LocalBusiness',
+      '@id': `#business-${index}`,
+      name: place.name,
+      address: {
+        '@type': 'PostalAddress',
+        addressLocality: location.city,
+        addressRegion: location.state,
+        addressCountry: 'US'
+      },
+      geo: {
+        '@type': 'GeoCoordinates',
+        latitude: place.latitude || location.latitude,
+        longitude: place.longitude || location.longitude
       }
-    })),
-    'name': `Top 10 ${keyword} in ${location}`
+    }))
   };
 }

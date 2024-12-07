@@ -48,16 +48,19 @@ export default async function Home() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {locations.slice(0, 6).map((location) => {
-              const slug = generateSlug(`${location.city}-${location.state}`);
+              const slug = generateSlug(`${location.location}-${location.state}`);
               return (
                 <Link
-                  key={`${location.city}-${location.state}`}
-                  href={`/locations/${slug}`}
-                  className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                  key={`${location.location}-${location.state}`}
+                  href={`/search?location=${slug}`}
+                  className="block p-6 bg-white rounded-lg shadow hover:shadow-md transition-shadow"
                 >
-                  <h3 className="text-lg font-medium text-gray-900">
-                    {location.city}, {location.state}
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {location.location}, {location.state}
                   </h3>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Population: {location.population?.toLocaleString() ?? 'N/A'}
+                  </p>
                 </Link>
               );
             })}

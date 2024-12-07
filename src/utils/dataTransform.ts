@@ -1,4 +1,5 @@
 import { PlaceResult, Location, Photo, BusinessMetadata, BusinessHours } from '@/types/places';
+import { Place } from './placesApi';
 
 interface Location {
   lat: number;
@@ -403,4 +404,15 @@ export function enrichPlaceData(place: PlaceResult, userLocation?: Location): Pl
   }
 
   return place;
+}
+
+export function transformPlaceResults(places: Place[]): Place[] {
+  return places.map(place => ({
+    ...place,
+    // Add any necessary transformations here
+    name: place.name.trim(),
+    address: place.address.trim(),
+    rating: place.rating ? Math.round(place.rating * 10) / 10 : undefined,
+    reviewCount: place.reviewCount || 0,
+  }));
 }

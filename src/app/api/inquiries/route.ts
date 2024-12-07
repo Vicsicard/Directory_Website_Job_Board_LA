@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   try {
     // Rate limiting
     const rateLimitResult = await rateLimit(request);
-    if (!rateLimitResult.success) {
+    if (rateLimitResult && !rateLimitResult.success) {
       return NextResponse.json(
         { message: 'Too many requests. Please try again later.' },
         { status: 429 }
@@ -81,29 +81,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { message: 'Failed to submit inquiry' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const email = searchParams.get('email');
-
-  if (!email) {
-    return NextResponse.json(
-      { message: 'Email parameter is required' },
-      { status: 400 }
-    );
-  }
-
-  try {
-    const inquiries = await getInquiriesByEmail(email);
-    return NextResponse.json({ inquiries });
-  } catch (error) {
-    console.error('Error fetching inquiries:', error);
-    return NextResponse.json(
-      { message: 'Failed to fetch inquiries' },
       { status: 500 }
     );
   }

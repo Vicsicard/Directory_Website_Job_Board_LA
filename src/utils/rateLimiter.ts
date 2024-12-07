@@ -1,4 +1,5 @@
 import { MongoClient } from 'mongodb';
+import { NextRequest, NextResponse } from 'next/server';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const RATE_LIMIT_COLLECTION = 'api_rate_limits';
@@ -14,11 +15,21 @@ const IP_RATE_LIMIT = {
   windowMs: 60 * 60 * 1000,  // 1 hour
 };
 
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_REQUESTS = 10;
+
 interface RateLimitDoc {
   _id: string;
   count: number;
   resetAt: Date;
   type: 'global' | 'ip';
+}
+
+interface RateLimitStore {
+  [key: string]: {
+    count: number;
+    resetTime: number;
+  };
 }
 
 let cachedClient: MongoClient | null = null;
@@ -127,4 +138,51 @@ export async function getRateLimitStats() {
       totalRequests: ipStats.reduce((sum, doc) => sum + doc.count, 0)
     }
   };
+}
+
+interface RateLimitResult {
+  success: boolean;
+  error?: string;
+}
+
+const REQUESTS_PER_MINUTE = 5;
+const WINDOW_MS = 60 * 1000; // 1 minute
+
+const requestCounts = new Map<string, { count: number; timestamp: number }>();
+
+export async function rateLimit(request: NextRequest): Promise<RateLimitResult> {
+  const ip = request.headers.get('x-forwarded-for') || 'unknown';
+  const now = Date.now();
+
+  // Clean up old entries
+  for (const [key, data] of requestCounts.entries()) {
+    if (now - data.timestamp > WINDOW_MS) {
+      requestCounts.delete(key);
+    }
+  }
+
+  // Get or create rate limit data for this IP
+  const rateData = requestCounts.get(ip) || { count: 0, timestamp: now };
+
+  // Reset count if window has passed
+  if (now - rateData.timestamp > WINDOW_MS) {
+    rateData.count = 0;
+    rateData.timestamp = now;
+  }
+
+  // Increment count
+  rateData.count++;
+
+  // Update map
+  requestCounts.set(ip, rateData);
+
+  // Check if rate limit exceeded
+  if (rateData.count > REQUESTS_PER_MINUTE) {
+    return {
+      success: false,
+      error: 'Rate limit exceeded'
+    };
+  }
+
+  return { success: true };
 }

@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const locations = await getLocations();
   
   const keyword = keywords.find(k => generateSlug(k.keyword) === params.keyword);
-  const location = locations.find(l => generateSlug(`${l.city}-${l.state}`) === params.location);
+  const location = locations.find(l => generateSlug(`${l.location}-${l.state}`) === params.location);
   
   if (!keyword || !location) {
     return {
@@ -46,7 +46,7 @@ export async function generateStaticParams() {
     return keywords.flatMap(keyword => 
       locations.map(location => ({
         keyword: generateSlug(keyword.keyword),
-        location: generateSlug(`${location.city}-${location.state}`)
+        location: generateSlug(`${location.location}-${location.state}`)
       }))
     );
   } catch (error) {
@@ -60,24 +60,18 @@ export default async function Page({ params, searchParams }: PageProps) {
   const locations = await getLocations();
   
   const keyword = keywords.find(k => generateSlug(k.keyword) === params.keyword);
-  const location = locations.find(l => generateSlug(`${l.city}-${l.state}`) === params.location);
+  const location = locations.find(l => generateSlug(`${l.location}-${l.state}`) === params.location);
   
   if (!keyword || !location) {
     notFound();
   }
   
   const page = searchParams.page ? parseInt(searchParams.page) : 1;
-  const itemsPerPage = 10;
-  const places = await getPlaces(keyword.keyword, `${location.city}, ${location.state}`);
+  const places = await getPlaces(keyword.keyword, location);
   
   // Generate structured data for SEO
   const structuredData = generateStructuredData(keyword.keyword, location, places);
   
-  const totalPages = Math.ceil(places.length / itemsPerPage);
-  const startIndex = (page - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentPlaces = places.slice(startIndex, endIndex);
-
   return (
     <>
       <Script
@@ -86,30 +80,26 @@ export default async function Page({ params, searchParams }: PageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       
-      <div className="container mx-auto px-4 py-8">
-        <Breadcrumbs
-          items={[
-            { label: 'Home', href: '/' },
-            { label: keyword.keyword, href: `/${params.keyword}` },
-            { label: `${location.city}, ${location.state}`, href: '#' }
-          ]}
-        />
-
-        <h1 className="text-4xl font-bold mb-8">
-          {keyword.keyword} Services in {location.city}, {location.state}
-        </h1>
-
-        <Suspense fallback={<div>Loading...</div>}>
-          <PlacesList places={currentPlaces} />
-        </Suspense>
-
-        {totalPages > 1 && (
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            baseUrl={`/${params.keyword}/${params.location}`}
-          />
-        )}
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Breadcrumbs keyword={keyword.keyword} location={location} />
+          
+          <h1 className="text-3xl font-bold text-gray-900 mt-8 mb-4">
+            {keyword.keyword} Services in {location.location}, {location.state}
+          </h1>
+          
+          <Suspense fallback={<div>Loading places...</div>}>
+            <PlacesList places={places} />
+          </Suspense>
+          
+          <div className="mt-8">
+            <Pagination
+              currentPage={page}
+              totalItems={places.length}
+              itemsPerPage={10}
+            />
+          </div>
+        </div>
       </div>
     </>
   );

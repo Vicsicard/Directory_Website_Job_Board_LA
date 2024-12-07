@@ -6,22 +6,46 @@ import { generateSlug } from '@/utils/csvParser';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ErrorMessage from '@/components/common/ErrorMessage';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  AnimatedContainer, 
-  fadeInUp, 
-  fadeInScale, 
-  slideInFromRight, 
-  bounceIn,
-  pulseAnimation 
-} from '@/components/animations/AnimatedContainer';
+import AnimatedContainer from '@/components/common/AnimatedContainer';
 import VirtualizedDropdown from '@/components/common/VirtualizedDropdown';
+
+// Animation variants
+const fadeInUp = {
+  initial: { y: 20, opacity: 0 },
+  animate: { y: 0, opacity: 1 },
+  exit: { y: 20, opacity: 0 }
+};
+
+const fadeInScale = {
+  initial: { scale: 0.9, opacity: 0 },
+  animate: { scale: 1, opacity: 1 },
+  exit: { scale: 0.9, opacity: 0 }
+};
+
+const slideInFromRight = {
+  initial: { x: 20, opacity: 0 },
+  animate: { x: 0, opacity: 1 },
+  exit: { x: 20, opacity: 0 }
+};
+
+const bounceIn = {
+  initial: { scale: 0.3, opacity: 0 },
+  animate: { scale: 1, opacity: 1 },
+  exit: { scale: 0.3, opacity: 0 }
+};
+
+const pulseAnimation = {
+  initial: { scale: 1 },
+  animate: { scale: 1.05 },
+  exit: { scale: 1 }
+};
 
 interface Keyword {
   keyword: string;
 }
 
 interface Location {
-  city: string;
+  location: string;
   state: string;
 }
 
@@ -102,7 +126,7 @@ export default function SearchBox() {
     
     if (!selectedLocation) {
       newErrors.location = 'Please select a location';
-    } else if (!locations.find(l => `${l.city}, ${l.state}` === selectedLocation)) {
+    } else if (!locations.find(l => `${l.location}, ${l.state}` === selectedLocation)) {
       newErrors.location = 'Please select a valid location from the list';
     }
     
@@ -129,7 +153,7 @@ export default function SearchBox() {
     setErrors(prev => ({ ...prev, location: undefined }));
     setFilteredLocations(
       locations.filter(l => 
-        `${l.city}, ${l.state}`.toLowerCase().includes(value.toLowerCase())
+        `${l.location}, ${l.state}`.toLowerCase().includes(value.toLowerCase())
       )
     );
     setShowLocationDropdown(true);
@@ -145,11 +169,11 @@ export default function SearchBox() {
 
     setIsSearching(true);
     const keyword = keywords.find(k => k.keyword === selectedKeyword)!;
-    const location = locations.find(l => `${l.city}, ${l.state}` === selectedLocation)!;
+    const location = locations.find(l => `${l.location}, ${l.state}` === selectedLocation)!;
     
     try {
       const keywordSlug = generateSlug(keyword.keyword);
-      const locationSlug = generateSlug(`${location.city}-${location.state}`);
+      const locationSlug = generateSlug(`${location.location}-${location.state}`);
       await router.push(`/${keywordSlug}/${locationSlug}`);
     } catch (error) {
       setErrors({ general: 'Failed to perform search. Please try again.' });
@@ -163,7 +187,6 @@ export default function SearchBox() {
     <AnimatedContainer 
       className="w-full max-w-4xl mx-auto p-4"
       variants={fadeInScale}
-      duration={0.6}
     >
       <style jsx global>{`
         @keyframes shake {
@@ -275,11 +298,11 @@ export default function SearchBox() {
                 items={filteredLocations}
                 renderItem={(item) => (
                   <div className="p-2 transition-all duration-200 hover:pl-4">
-                    {item.city}, {item.state}
+                    {item.location}, {item.state}
                   </div>
                 )}
                 onSelect={(item) => {
-                  setSelectedLocation(`${item.city}, ${item.state}`);
+                  setSelectedLocation(`${item.location}, ${item.state}`);
                   setShowLocationDropdown(false);
                 }}
                 itemHeight={40}
@@ -302,7 +325,8 @@ export default function SearchBox() {
               flex items-center justify-center min-w-[120px]`}
             whileHover={!isLoading && !isSearching ? { scale: 1.05 } : undefined}
             whileTap={!isLoading && !isSearching ? { scale: 0.95 } : undefined}
-            animate={hasInteracted && !isLoading && !isSearching ? pulseAnimation : undefined}
+            animate={hasInteracted && !isLoading && !isSearching ? "animate" : "initial"}
+            variants={pulseAnimation}
           >
             {isSearching ? (
               <LoadingSpinner size="sm" className="text-white" />
