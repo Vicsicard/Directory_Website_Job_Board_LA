@@ -19,6 +19,11 @@ interface PageProps {
   };
 }
 
+interface Crumb {
+  name: string;
+  url: string;
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const keywords = await getKeywords();
   const locations = await getLocations();
@@ -93,10 +98,10 @@ export default async function Page({ params, searchParams }: PageProps) {
       }))
     );
 
-    const breadcrumbs = [
-      { name: 'Home', href: '/' },
-      { name: keyword.keyword, href: `/${params.keyword}` },
-      { name: `${location.city}, ${location.state}`, href: `/${params.keyword}/${params.location}` },
+    const breadcrumbs: Crumb[] = [
+      { name: 'Home', url: '/' },
+      { name: keyword.keyword, url: `/${params.keyword}` },
+      { name: `${location.city}, ${location.state}`, url: `/${params.keyword}/${params.location}` },
     ];
 
     return (
