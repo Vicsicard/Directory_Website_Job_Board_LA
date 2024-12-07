@@ -5,6 +5,7 @@ import BusinessList from '@/components/BusinessList';
 import SearchFilters from '@/components/SearchFilters';
 import { SearchStats } from '@/components/SearchStats';
 import { getKeywords, generateSlug } from '@/utils/csvParser';
+import { notFound } from 'next/navigation';
 
 type Props = {
   params: { keyword: string };
@@ -12,10 +13,19 @@ type Props = {
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const decodedKeyword = decodeURIComponent(params.keyword);
+  const keywords = await getKeywords();
+  const keyword = keywords.find(k => generateSlug(k.keyword) === params.keyword);
+  
+  if (!keyword) {
+    return {
+      title: 'Service Not Found | Local Services Directory',
+      description: 'The requested service category could not be found.'
+    };
+  }
+
   return {
-    title: `${decodedKeyword} Services Near You | Local Services Directory`,
-    description: `Find top-rated ${decodedKeyword} services in your area. Compare prices, read reviews, and find the best local service providers.`,
+    title: `${keyword.keyword} Services Near You | Local Services Directory`,
+    description: `Find top-rated ${keyword.keyword} services in your area. Compare prices, read reviews, and find the best local service providers.`,
   };
 }
 
@@ -27,7 +37,14 @@ export async function generateStaticParams() {
 }
 
 export default async function KeywordPage({ params, searchParams }: Props) {
-  const decodedKeyword = decodeURIComponent(params.keyword);
+  const keywords = await getKeywords();
+  const keyword = keywords.find(k => generateSlug(k.keyword) === params.keyword);
+  
+  if (!keyword) {
+    notFound();
+  }
+
+  const decodedKeyword = keyword.keyword;
   
   // Parse search parameters
   const filters = {
