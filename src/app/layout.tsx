@@ -11,18 +11,7 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Local Business Directory',
   description: 'Find the best local services in your area',
-}
-
-// Initialize database
-async function initDb() {
-  try {
-    const response = await fetch('/api/init-db');
-    if (!response.ok) {
-      throw new Error('Failed to initialize database');
-    }
-  } catch (error) {
-    console.error('Error initializing database:', error);
-  }
+  metadataBase: new URL('https://local-services-directory.vercel.app'),
 }
 
 export default function RootLayout({
@@ -30,21 +19,18 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Call initDb in a way that doesn't block rendering
-  if (typeof window !== 'undefined') {
-    initDb();
-  }
-
   return (
     <html lang="en">
       <body className={inter.className}>
         <GlobalErrorBoundary>
+          <div className="flex flex-col min-h-screen">
+            <Header />
+            <main className="flex-grow">
+              {children}
+            </main>
+            <Footer />
+          </div>
           <CacheManager />
-          <Header />
-          <main className="min-h-screen">
-            {children}
-          </main>
-          <Footer />
         </GlobalErrorBoundary>
       </body>
     </html>
