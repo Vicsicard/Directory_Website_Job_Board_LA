@@ -1,0 +1,4 @@
+---
+permalink: /google-site-verification.txt
+---
+google-site-verification: google-site-verification.txt

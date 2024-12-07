@@ -1,117 +1,114 @@
 import { Metadata } from 'next';
-import { getKeywords, getLocations, generateSlug } from '@/utils/csvParser';
-import { generateSeoMetadata } from '@/utils/seoUtils';
-import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import Breadcrumbs from '@/components/common/Breadcrumbs';
+import { getPlacesByKeyword } from '@/utils/placesApi';
+import { transformPlaceResults } from '@/utils/dataTransform';
+import BusinessList from '@/components/BusinessList';
+import SearchFilters from '@/components/SearchFilters';
+import { SearchStats } from '@/components/SearchStats';
 
-interface PageProps {
-  params: {
-    keyword: string;
-  };
-}
+type Props = {
+  params: { keyword: string };
+  searchParams: { [key: string]: string | string[] | undefined };
+};
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const keywords = await getKeywords();
-  const keyword = keywords.find(k => generateSlug(k.keyword) === params.keyword);
-  
-  if (!keyword) {
-    return {
-      title: 'Category Not Found',
-      description: 'The requested category could not be found.'
-    };
-  }
-
-  const seoData = generateSeoMetadata(keyword.keyword, 'All Locations', '');
-
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const decodedKeyword = decodeURIComponent(params.keyword);
   return {
-    title: `Best ${keyword.keyword} by Location - Find Top Rated Services`,
-    description: seoData.description,
-    openGraph: {
-      ...seoData.openGraph,
-      title: `Best ${keyword.keyword} by Location - Find Top Rated Services`,
-    },
+    title: `${decodedKeyword} Services Near You | Local Services Directory`,
+    description: `Find top-rated ${decodedKeyword} services in your area. Compare prices, read reviews, and find the best local service providers.`,
   };
 }
 
-export async function generateStaticParams() {
-  const keywords = await getKeywords();
-  return keywords.map(keyword => ({
-    keyword: generateSlug(keyword.keyword),
-  }));
-}
-
-export default async function Page({ params }: PageProps) {
-  const keywords = await getKeywords();
-  const locations = await getLocations();
+export default async function KeywordPage({ params, searchParams }: Props) {
+  const decodedKeyword = decodeURIComponent(params.keyword);
   
-  const keyword = keywords.find(k => generateSlug(k.keyword) === params.keyword);
-  
-  if (!keyword) {
-    notFound();
-  }
+  // Parse search parameters
+  const filters = {
+    rating: searchParams.rating ? Number(searchParams.rating) : undefined,
+    priceLevel: searchParams.price ? Number(searchParams.price) : undefined,
+    openNow: searchParams.openNow === 'true',
+    sortBy: searchParams.sort as string || 'relevance',
+  };
 
-  // Group locations by state
-  const locationsByState = locations.reduce((acc, location) => {
-    if (!acc[location.state]) {
-      acc[location.state] = [];
-    }
-    acc[location.state].push(location);
-    return acc;
-  }, {} as Record<string, typeof locations>);
+  try {
+    // Fetch and transform places data
+    const placesData = await getPlacesByKeyword(decodedKeyword);
+    const transformedResults = await transformPlaceResults(placesData);
 
-  const breadcrumbs = [
-    { name: 'Home', href: '/' },
-    { name: keyword.keyword, href: `/${params.keyword}` },
-  ];
+    // Apply filters
+    const filteredResults = transformedResults.filter(place => {
+      if (filters.rating && place.rating < filters.rating) return false;
+      if (filters.priceLevel && place.priceLevel > filters.priceLevel) return false;
+      if (filters.openNow && !place.openNow) return false;
+      return true;
+    });
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <Breadcrumbs items={breadcrumbs} />
-      
-      <h1 className="text-4xl font-bold mb-8">
-        Best {keyword.keyword} by Location
-      </h1>
+    // Sort results
+    const sortedResults = [...filteredResults].sort((a, b) => {
+      switch (filters.sortBy) {
+        case 'rating':
+          return (b.rating || 0) - (a.rating || 0);
+        case 'reviews':
+          return (b.userRatingsTotal || 0) - (a.userRatingsTotal || 0);
+        case 'price-asc':
+          return (a.priceLevel || 0) - (b.priceLevel || 0);
+        case 'price-desc':
+          return (b.priceLevel || 0) - (a.priceLevel || 0);
+        default:
+          return 0;
+      }
+    });
 
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-        <p className="text-lg text-gray-700 mb-4">
-          Find the top-rated {keyword.keyword.toLowerCase()} in your area. Browse through our comprehensive 
-          directory of professional {keyword.keyword.toLowerCase()} services across different locations.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {Object.entries(locationsByState).map(([state, stateLocations]) => (
-          <div key={state} className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-semibold mb-4">{state}</h2>
-            <ul className="space-y-2">
-              {stateLocations.map(location => (
-                <li key={location.city}>
-                  <Link
-                    href={`/${params.keyword}/${generateSlug(`${location.city}-${location.state}`)}`}
-                    className="text-blue-600 hover:text-blue-800 transition-colors"
-                  >
-                    {keyword.keyword} in {location.city}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              {decodedKeyword} Services Near You
+            </h1>
+            <p className="text-gray-600">
+              Find and compare top-rated {decodedKeyword.toLowerCase()} services in your area
+            </p>
           </div>
-        ))}
-      </div>
 
-      <div className="mt-12 bg-gray-50 rounded-lg p-6">
-        <h2 className="text-2xl font-semibold mb-4">
-          Why Choose Our {keyword.keyword} Directory?
-        </h2>
-        <ul className="space-y-4 text-gray-700">
-          <li>✓ Comprehensive listings of verified service providers</li>
-          <li>✓ Real customer reviews and ratings</li>
-          <li>✓ Detailed business information and contact details</li>
-          <li>✓ Easy comparison of services and prices</li>
-          <li>✓ Updated regularly with new businesses</li>
-        </ul>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            {/* Filters Section */}
+            <div className="lg:col-span-1">
+              <SearchFilters
+                currentFilters={filters}
+                totalResults={sortedResults.length}
+              />
+            </div>
+
+            {/* Results Section */}
+            <div className="lg:col-span-3">
+              <SearchStats
+                total={sortedResults.length}
+                keyword={decodedKeyword}
+                filters={filters}
+              />
+              
+              <BusinessList
+                businesses={sortedResults}
+                showMap={true}
+              />
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  } catch (error) {
+    console.error('Error fetching places:', error);
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">
+            Unable to load results
+          </h1>
+          <p className="text-gray-600">
+            We encountered an error while fetching results. Please try again later.
+          </p>
+        </div>
+      </div>
+    );
+  }
 }
