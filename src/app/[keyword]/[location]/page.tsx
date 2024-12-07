@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { generateStaticPaths, getKeywords, getLocations, generateSlug } from '@/utils/csvParser';
+import { getKeywords, getLocations, generateSlug } from '@/utils/csvParser';
 import { Suspense } from 'react';
 import { getPlaces } from '@/utils/placesApi';
 import PlacesList from '@/components/places/PlacesList';
@@ -19,11 +19,6 @@ interface PageProps {
   };
 }
 
-interface Crumb {
-  name: string;
-  url: string;
-}
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const keywords = await getKeywords();
   const locations = await getLocations();
@@ -33,31 +28,41 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   
   if (!keyword || !location) {
     return {
-      title: 'Page Not Found',
-      description: 'The requested page could not be found.'
+      title: 'Service Not Found | Local Services Directory',
+      description: 'The requested service or location could not be found.'
     };
   }
 
-  const seoData = generateSeoMetadata(keyword.keyword, location.city, location.state);
+  const title = `${keyword.keyword} in ${location.city}, ${location.state}`;
+  const description = `Find and compare the best ${keyword.keyword} services in ${location.city}, ${location.state}. Read reviews, check ratings, and contact local providers.`;
 
   return {
-    title: seoData.title,
-    description: seoData.description,
-    openGraph: seoData.openGraph,
-    twitter: {
-      card: 'summary_large_image',
-      title: seoData.title,
-      description: seoData.description,
-    },
-    alternates: {
-      canonical: seoData.canonical,
+    title: `${title} | Local Services Directory`,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'website',
     },
   };
 }
 
 export async function generateStaticParams() {
-  const paths = await generateStaticPaths();
-  return paths.map(path => path.params);
+  const keywords = await getKeywords();
+  const locations = await getLocations();
+  
+  const params = [];
+  
+  for (const keyword of keywords) {
+    for (const location of locations) {
+      params.push({
+        keyword: generateSlug(keyword.keyword),
+        location: generateSlug(`${location.city}-${location.state}`)
+      });
+    }
+  }
+  
+  return params;
 }
 
 export default async function Page({ params, searchParams }: PageProps) {
@@ -71,73 +76,52 @@ export default async function Page({ params, searchParams }: PageProps) {
     notFound();
   }
 
-  const page = parseInt(searchParams.page || '1', 10);
-  const ITEMS_PER_PAGE = 10;
-
+  const page = searchParams.page ? parseInt(searchParams.page) : 1;
+  const limit = 10;
+  
   try {
-    const data = await getPlaces(keyword.keyword, `${location.city}, ${location.state}`, {
-      page,
-      limit: ITEMS_PER_PAGE,
-    });
-
-    if (!data || !data.items || data.items.length === 0) {
+    const places = await getPlaces(keyword.keyword, location.city, location.state, page, limit);
+    
+    if (!places || !places.items || places.items.length === 0) {
       notFound();
     }
 
-    const seoData = generateSeoMetadata(keyword.keyword, location.city, location.state);
-    const structuredData = generateStructuredData(
-      keyword.keyword,
-      location.city,
-      location.state,
-      data.items.map(item => ({
-        name: item.name,
-        rating: item.rating,
-        reviewCount: item.user_ratings_total,
-        address: item.formatted_address,
-        phone: item.formatted_phone_number,
-      }))
-    );
-
-    const breadcrumbs: Crumb[] = [
+    const breadcrumbs = [
       { name: 'Home', url: '/' },
       { name: keyword.keyword, url: `/${params.keyword}` },
-      { name: `${location.city}, ${location.state}`, url: `/${params.keyword}/${params.location}` },
+      { name: `${location.city}, ${location.state}`, url: `/${params.keyword}/${params.location}` }
     ];
 
     return (
-      <>
+      <div className="container mx-auto px-4 py-8">
+        <Breadcrumbs items={breadcrumbs} />
+        
+        <h1 className="text-4xl font-bold mb-8">
+          {keyword.keyword} in {location.city}, {location.state}
+        </h1>
+        
+        <Suspense fallback={<div>Loading places...</div>}>
+          <PlacesList places={places.items} />
+        </Suspense>
+        
+        {places.total_pages > 1 && (
+          <Pagination
+            currentPage={page}
+            totalPages={places.total_pages}
+            baseUrl={`/${params.keyword}/${params.location}`}
+          />
+        )}
+        
         <Script
           id="structured-data"
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(
+              generateStructuredData(keyword.keyword, location.city, location.state, places.items)
+            )
+          }}
         />
-        
-        <div className="container mx-auto px-4 py-8">
-          <Breadcrumbs items={breadcrumbs} />
-          
-          <h1 className="text-4xl font-bold mb-8">
-            {seoData.title}
-          </h1>
-
-          <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-            <p className="text-lg text-gray-700 mb-4">
-              {seoData.description}
-            </p>
-          </div>
-
-          <Suspense fallback={<div>Loading places...</div>}>
-            <PlacesList places={data.items} />
-          </Suspense>
-
-          {data.total_pages > 1 && (
-            <Pagination
-              currentPage={page}
-              totalPages={data.total_pages}
-              baseUrl={`/${params.keyword}/${params.location}`}
-            />
-          )}
-        </div>
-      </>
+      </div>
     );
   } catch (error) {
     console.error('Error fetching places:', error);

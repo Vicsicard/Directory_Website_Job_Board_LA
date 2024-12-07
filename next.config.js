@@ -6,6 +6,7 @@ const nextConfig = {
   },
   // Enable static page generation
   generateStaticParams: true,
+  staticPageGenerationTimeout: 300,
   // Configure path handling
   async rewrites() {
     return [
