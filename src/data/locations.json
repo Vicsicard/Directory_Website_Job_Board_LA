@@ -1,0 +1,10 @@
+{
+  "locations": [
+    { "city": "Los Angeles County", "state": "California" },
+    { "city": "Orange County", "state": "California" },
+    { "city": "San Diego", "state": "California" },
+    { "city": "San Francisco", "state": "California" },
+    { "city": "San Jose", "state": "California" },
+    { "city": "Sacramento", "state": "California" }
+  ]
+}
