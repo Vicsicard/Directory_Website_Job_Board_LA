@@ -29,22 +29,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export async function generateStaticParams() {
-  try {
-    const keywords = await getKeywords();
-    if (!keywords || !Array.isArray(keywords)) {
-      console.warn('No keywords found or invalid data format');
-      return [];
-    }
-    return keywords.map((keyword) => ({
-      keyword: generateSlug(keyword.keyword || ''),
-    }));
-  } catch (error) {
-    console.error('Error generating keyword params:', error);
-    return [];
-  }
-}
-
 export default async function KeywordPage({ params, searchParams }: Props) {
   const keywords = await getKeywords();
   const keyword = keywords.find(k => generateSlug(k.keyword) === params.keyword);
