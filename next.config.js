@@ -1,11 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  experimental: {
-    serverActions: true,
-  },
-  // Enable static page generation
-  generateStaticParams: true,
   staticPageGenerationTimeout: 300,
   // Configure path handling
   async rewrites() {
@@ -20,16 +15,29 @@ const nextConfig = {
       }
     ]
   },
+  // Disable static optimization for dynamic routes
+  experimental: {
+    // Enable if needed for debugging
+    // logging: { level: 'verbose' },
+    // Enable reading files from data directory
+    outputFileTracingIncludes: {
+      '/**': ['./data/**/*']
+    }
+  },
   // Configure webpack to handle CSV files
   webpack(config) {
     config.module.rules.push({
       test: /\.csv$/,
-      loader: 'csv-loader',
-      options: {
-        dynamicTyping: true,
-        header: true,
-        skipEmptyLines: true
-      }
+      use: [
+        {
+          loader: 'csv-loader',
+          options: {
+            dynamicTyping: true,
+            header: true,
+            skipEmptyLines: true
+          }
+        }
+      ]
     });
     return config;
   }
