@@ -1,7 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  staticPageGenerationTimeout: 300,
+  reactStrictMode: true,
+  experimental: {
+    appDir: true,
+    serverComponentsExternalPackages: ['csv-parse'],
+  },
   // Configure path handling
   async rewrites() {
     return [
@@ -14,15 +18,6 @@ const nextConfig = {
         destination: '/api/sitemap'
       }
     ]
-  },
-  // Disable static optimization for dynamic routes
-  experimental: {
-    // Enable if needed for debugging
-    // logging: { level: 'verbose' },
-    // Enable reading files from data directory
-    outputFileTracingIncludes: {
-      '/**': ['./data/**/*']
-    }
   },
   // Configure webpack to handle CSV files
   webpack(config) {

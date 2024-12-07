@@ -36,6 +36,25 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return generateSeoMetadata(keyword.keyword, location);
 }
 
+export async function generateStaticParams() {
+  try {
+    const keywords = await getKeywords();
+    const locations = await getLocations();
+    
+    if (!keywords?.length || !locations?.length) return [];
+
+    return keywords.flatMap(keyword => 
+      locations.map(location => ({
+        keyword: generateSlug(keyword.keyword),
+        location: generateSlug(`${location.city}-${location.state}`)
+      }))
+    );
+  } catch (error) {
+    console.error('Error generating location params:', error);
+    return [];
+  }
+}
+
 export default async function Page({ params, searchParams }: PageProps) {
   const keywords = await getKeywords();
   const locations = await getLocations();
@@ -46,27 +65,28 @@ export default async function Page({ params, searchParams }: PageProps) {
   if (!keyword || !location) {
     notFound();
   }
-
+  
   const page = searchParams.page ? parseInt(searchParams.page) : 1;
   const itemsPerPage = 10;
+  const places = await getPlaces(keyword.keyword, `${location.city}, ${location.state}`);
+  
+  // Generate structured data for SEO
+  const structuredData = generateStructuredData(keyword.keyword, location, places);
+  
+  const totalPages = Math.ceil(places.length / itemsPerPage);
+  const startIndex = (page - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentPlaces = places.slice(startIndex, endIndex);
 
-  try {
-    const places = await getPlaces(keyword.keyword, `${location.city}, ${location.state}`);
-    const totalPages = Math.ceil(places.length / itemsPerPage);
-    const startIndex = (page - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentPlaces = places.slice(startIndex, endIndex);
-
-    const structuredData = generateStructuredData(keyword.keyword, location, places);
-
-    return (
+  return (
+    <>
+      <Script
+        id="structured-data"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      
       <div className="container mx-auto px-4 py-8">
-        <Script
-          id="structured-data"
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-        />
-        
         <Breadcrumbs
           items={[
             { label: 'Home', href: '/' },
@@ -91,9 +111,6 @@ export default async function Page({ params, searchParams }: PageProps) {
           />
         )}
       </div>
-    );
-  } catch (error) {
-    console.error('Error fetching places:', error);
-    notFound();
-  }
+    </>
+  );
 }

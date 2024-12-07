@@ -7,10 +7,10 @@ import { SearchStats } from '@/components/SearchStats';
 import { getKeywords, generateSlug } from '@/utils/csvParser';
 import { notFound } from 'next/navigation';
 
-type Props = {
+interface Props {
   params: { keyword: string };
   searchParams: { [key: string]: string | string[] | undefined };
-};
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const keywords = await getKeywords();
@@ -27,6 +27,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${keyword.keyword} Services Near You | Local Services Directory`,
     description: `Find top-rated ${keyword.keyword} services in your area. Compare prices, read reviews, and find the best local service providers.`,
   };
+}
+
+export async function generateStaticParams() {
+  try {
+    const keywords = await getKeywords();
+    if (!keywords?.length) return [];
+    
+    return keywords.map((keyword) => ({
+      keyword: generateSlug(keyword.keyword),
+    }));
+  } catch (error) {
+    console.error('Error generating keyword params:', error);
+    return [];
+  }
 }
 
 export default async function KeywordPage({ params, searchParams }: Props) {
