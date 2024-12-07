@@ -24,41 +24,45 @@ export type Location = z.infer<typeof locationSchema>;
 
 // Helper function to resolve paths relative to project root
 function resolveDataPath(fileName: string): string {
+  if (!fileName) throw new Error('Filename is required');
   const dataPath = path.join(process.cwd(), 'data', fileName);
-  if (!dataPath) {
-    throw new Error(`Invalid data path for file: ${fileName}`);
-  }
   return dataPath;
 }
 
+// Parse CSV with better error handling
 async function parseCSV<T>(filePath: string, schema: z.Schema<T>): Promise<T[]> {
-  if (!filePath) {
-    throw new Error('File path is required for CSV parsing');
-  }
-
-  return withErrorHandling(async () => {
+  try {
     const fileContent = await fs.readFile(filePath, 'utf-8');
-    
+    if (!fileContent.trim()) {
+      console.warn(`Empty file: ${filePath}`);
+      return [];
+    }
+
     return new Promise((resolve, reject) => {
       parse(fileContent, {
         columns: true,
         skip_empty_lines: true,
-        cast: true,
-      }, (error, records) => {
-        if (error) {
-          reject(new CSVError(`Failed to parse CSV file: ${error.message}`));
+        trim: true,
+      }, (err, output) => {
+        if (err) {
+          console.error(`Error parsing CSV: ${filePath}`, err);
+          reject(err);
           return;
         }
-
+        
         try {
-          const validatedRecords = records.map(record => schema.parse(record));
-          resolve(validatedRecords);
+          const validatedData = output.map(row => schema.parse(row));
+          resolve(validatedData);
         } catch (validationError) {
-          reject(new CSVError(`CSV validation failed: ${validationError.message}`));
+          console.error(`Validation error in CSV: ${filePath}`, validationError);
+          reject(validationError);
         }
       });
     });
-  });
+  } catch (error) {
+    console.error(`Error reading/parsing CSV: ${filePath}`, error);
+    return [];
+  }
 }
 
 const csvCache = new Map<string, { data: any[]; timestamp: number }>();
@@ -93,11 +97,21 @@ async function getCachedCSVData<T>(
 }
 
 export async function getKeywords(forceRefresh = false): Promise<Keyword[]> {
-  return getCachedCSVData('keywords.csv', keywordSchema, forceRefresh);
+  try {
+    return await getCachedCSVData('keywords.csv', keywordSchema, forceRefresh);
+  } catch (error) {
+    console.error('Error getting keywords:', error);
+    return [];
+  }
 }
 
 export async function getLocations(forceRefresh = false): Promise<Location[]> {
-  return getCachedCSVData('locations.csv', locationSchema, forceRefresh);
+  try {
+    return await getCachedCSVData('locations.csv', locationSchema, forceRefresh);
+  } catch (error) {
+    console.error('Error getting locations:', error);
+    return [];
+  }
 }
 
 export function generateSlug(text: string): string {

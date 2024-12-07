@@ -33,36 +33,35 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
 
-  const title = `${keyword.keyword} in ${location.city}, ${location.state}`;
-  const description = `Find and compare the best ${keyword.keyword} services in ${location.city}, ${location.state}. Read reviews, check ratings, and contact local providers.`;
-
-  return {
-    title: `${title} | Local Services Directory`,
-    description,
-    openGraph: {
-      title,
-      description,
-      type: 'website',
-    },
-  };
+  return generateSeoMetadata(keyword.keyword, location);
 }
 
 export async function generateStaticParams() {
-  const keywords = await getKeywords();
-  const locations = await getLocations();
-  
-  const params = [];
-  
-  for (const keyword of keywords) {
-    for (const location of locations) {
-      params.push({
-        keyword: generateSlug(keyword.keyword),
-        location: generateSlug(`${location.city}-${location.state}`)
-      });
+  try {
+    const keywords = await getKeywords();
+    const locations = await getLocations();
+
+    if (!keywords || !Array.isArray(keywords) || !locations || !Array.isArray(locations)) {
+      console.warn('No keywords or locations found or invalid data format');
+      return [];
     }
+
+    const paths = [];
+    for (const keyword of keywords) {
+      if (!keyword?.keyword) continue;
+      for (const location of locations) {
+        if (!location?.city || !location?.state) continue;
+        paths.push({
+          keyword: generateSlug(keyword.keyword),
+          location: generateSlug(`${location.city}-${location.state}`)
+        });
+      }
+    }
+    return paths;
+  } catch (error) {
+    console.error('Error generating location params:', error);
+    return [];
   }
-  
-  return params;
 }
 
 export default async function Page({ params, searchParams }: PageProps) {
@@ -77,50 +76,48 @@ export default async function Page({ params, searchParams }: PageProps) {
   }
 
   const page = searchParams.page ? parseInt(searchParams.page) : 1;
-  const limit = 10;
-  
-  try {
-    const places = await getPlaces(keyword.keyword, location.city, location.state, page, limit);
-    
-    if (!places || !places.items || places.items.length === 0) {
-      notFound();
-    }
+  const itemsPerPage = 10;
 
-    const breadcrumbs = [
-      { name: 'Home', url: '/' },
-      { name: keyword.keyword, url: `/${params.keyword}` },
-      { name: `${location.city}, ${location.state}`, url: `/${params.keyword}/${params.location}` }
-    ];
+  try {
+    const places = await getPlaces(keyword.keyword, `${location.city}, ${location.state}`);
+    const totalPages = Math.ceil(places.length / itemsPerPage);
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentPlaces = places.slice(startIndex, endIndex);
+
+    const structuredData = generateStructuredData(keyword.keyword, location, places);
 
     return (
       <div className="container mx-auto px-4 py-8">
-        <Breadcrumbs items={breadcrumbs} />
-        
-        <h1 className="text-4xl font-bold mb-8">
-          {keyword.keyword} in {location.city}, {location.state}
-        </h1>
-        
-        <Suspense fallback={<div>Loading places...</div>}>
-          <PlacesList places={places.items} />
-        </Suspense>
-        
-        {places.total_pages > 1 && (
-          <Pagination
-            currentPage={page}
-            totalPages={places.total_pages}
-            baseUrl={`/${params.keyword}/${params.location}`}
-          />
-        )}
-        
         <Script
           id="structured-data"
           type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(
-              generateStructuredData(keyword.keyword, location.city, location.state, places.items)
-            )
-          }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
+        
+        <Breadcrumbs
+          items={[
+            { label: 'Home', href: '/' },
+            { label: keyword.keyword, href: `/${params.keyword}` },
+            { label: `${location.city}, ${location.state}`, href: '#' }
+          ]}
+        />
+
+        <h1 className="text-4xl font-bold mb-8">
+          {keyword.keyword} Services in {location.city}, {location.state}
+        </h1>
+
+        <Suspense fallback={<div>Loading...</div>}>
+          <PlacesList places={currentPlaces} />
+        </Suspense>
+
+        {totalPages > 1 && (
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            baseUrl={`/${params.keyword}/${params.location}`}
+          />
+        )}
       </div>
     );
   } catch (error) {
