@@ -20,7 +20,11 @@ async function createConnection(): Promise<MongoConnection> {
   }
 
   return withErrorHandling(async () => {
-    const client = await MongoClient.connect(MONGODB_URI);
+    const client = await MongoClient.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+    });
     const db = client.db(DB_NAME);
     return { client, db };
   }, 'Failed to connect to MongoDB');
@@ -28,16 +32,24 @@ async function createConnection(): Promise<MongoConnection> {
 
 export async function getMongoConnection(): Promise<MongoConnection> {
   if (cachedConnection) {
-    return cachedConnection;
+    try {
+      // Test if connection is still alive
+      await cachedConnection.db.command({ ping: 1 });
+      return cachedConnection;
+    } catch (error) {
+      console.warn('Cached connection is stale, creating new connection');
+      cachedConnection = null;
+    }
   }
 
   if (!connectionPromise) {
     connectionPromise = createConnection()
-      .then((connection) => {
+      .then(connection => {
         cachedConnection = connection;
+        connectionPromise = null;
         return connection;
       })
-      .catch((error) => {
+      .catch(error => {
         connectionPromise = null;
         throw error;
       });

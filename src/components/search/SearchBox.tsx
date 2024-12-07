@@ -65,7 +65,7 @@ export default function SearchBox() {
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [filteredKeywords, setFilteredKeywords] = useState<Keyword[]>([]);
   const [filteredLocations, setFilteredLocations] = useState<Location[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [errors, setErrors] = useState<ErrorState>({});
@@ -74,10 +74,11 @@ export default function SearchBox() {
   const keywordRef = useRef<HTMLDivElement>(null);
   const locationRef = useRef<HTMLDivElement>(null);
 
+  // Separate data fetching into its own effect
   useEffect(() => {
+    let mounted = true;
+
     const fetchData = async () => {
-      setIsLoading(true);
-      setErrors({});
       try {
         const [keywordsRes, locationsRes] = await Promise.all([
           fetch('/api/keywords'),
@@ -91,29 +92,38 @@ export default function SearchBox() {
         const keywordsData = await keywordsRes.json();
         const locationsData = await locationsRes.json();
         
-        setKeywords(keywordsData);
-        setLocations(locationsData);
-        setFilteredKeywords(keywordsData);
-        setFilteredLocations(locationsData);
+        if (mounted) {
+          setKeywords(keywordsData);
+          setLocations(locationsData);
+          setFilteredKeywords(keywordsData);
+          setFilteredLocations(locationsData);
+          setIsLoading(false);
+        }
       } catch (error) {
-        setErrors({ general: 'Failed to load search options. Please try again later.' });
-        setShowError(true);
-      } finally {
-        setIsLoading(false);
+        if (mounted) {
+          setErrors({ general: 'Failed to load search options. Please try again later.' });
+          setShowError(true);
+          setIsLoading(false);
+        }
       }
     };
 
     fetchData();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
+  // Separate error handling effect
   useEffect(() => {
-    if (Object.keys(errors).length > 0) {
+    if (showError) {
       const timer = setTimeout(() => {
         setShowError(false);
       }, 5000);
       return () => clearTimeout(timer);
     }
-  }, [errors]);
+  }, [showError]);
 
   const validateInput = () => {
     const newErrors: ErrorState = {};

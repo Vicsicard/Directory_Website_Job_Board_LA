@@ -3,8 +3,18 @@ import { getKeywords, getLocations, generateSlug } from '@/utils/csvParser';
 import Link from 'next/link';
 
 export default async function Home() {
-  const keywords = await getKeywords();
-  const locations = await getLocations();
+  let keywords = [];
+  let locations = [];
+  
+  try {
+    [keywords, locations] = await Promise.all([
+      getKeywords(),
+      getLocations()
+    ]);
+  } catch (error) {
+    console.error('Error loading initial data:', error);
+    // Continue with empty arrays if data fails to load
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -29,9 +39,9 @@ export default async function Home() {
               const slug = generateSlug(keyword.keyword);
               return (
                 <Link
-                  key={keyword.keyword}
+                  key={slug}
                   href={`/browse/${slug}`}
-                  className="p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                  className="block p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200"
                 >
                   <h3 className="text-lg font-medium text-gray-900">
                     {keyword.keyword}
