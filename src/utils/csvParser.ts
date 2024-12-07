@@ -25,7 +25,7 @@ export type Location = z.infer<typeof locationSchema>;
 // Helper function to resolve paths relative to project root
 function resolveDataPath(fileName: string): string {
   if (!fileName) throw new Error('Filename is required');
-  const dataPath = path.join(process.cwd(), 'data', fileName);
+  const dataPath = path.join(process.cwd(), 'src', 'data', fileName);
   return dataPath;
 }
 
