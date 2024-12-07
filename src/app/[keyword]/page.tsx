@@ -4,6 +4,7 @@ import { transformPlaceResults } from '@/utils/dataTransform';
 import BusinessList from '@/components/BusinessList';
 import SearchFilters from '@/components/SearchFilters';
 import { SearchStats } from '@/components/SearchStats';
+import { getKeywords, generateSlug } from '@/utils/csvParser';
 
 type Props = {
   params: { keyword: string };
@@ -16,6 +17,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${decodedKeyword} Services Near You | Local Services Directory`,
     description: `Find top-rated ${decodedKeyword} services in your area. Compare prices, read reviews, and find the best local service providers.`,
   };
+}
+
+export async function generateStaticParams() {
+  const keywords = await getKeywords();
+  return keywords.map((keyword) => ({
+    keyword: generateSlug(keyword.keyword),
+  }));
 }
 
 export default async function KeywordPage({ params, searchParams }: Props) {
